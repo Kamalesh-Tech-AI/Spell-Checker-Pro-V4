@@ -1,9 +1,21 @@
 import React from 'react';
 import { TrendingUp, Search, AlertTriangle, Users, Clock, Zap, Activity } from 'lucide-react';
 import { mockAnalytics, mockUserActivity } from '../data/mockData';
+import { dictionaryTrie } from '../data/dictionaryLoader';
 
 const StatsViewer = () => {
   const stats = mockAnalytics;
+  const [dictionaryStats, setDictionaryStats] = React.useState(() => dictionaryTrie.getStats());
+
+  // Update dictionary stats in real-time
+  React.useEffect(() => {
+    const updateStats = () => {
+      setDictionaryStats(dictionaryTrie.getStats());
+    };
+    
+    const interval = setInterval(updateStats, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   const StatCard = ({ icon: Icon, title, value, description, color }: {
     icon: any;
@@ -70,6 +82,37 @@ const StatsViewer = () => {
           description="Query success rate"
           color="#8B5CF6"
         />
+      </div>
+
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex items-center space-x-3 mb-6">
+          <Search className="h-6 w-6 text-purple-600" />
+          <h3 className="text-lg font-semibold text-gray-900">Dictionary Statistics</h3>
+        </div>
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="text-center p-4 bg-blue-50 rounded-lg">
+            <div className="text-2xl font-bold text-blue-900">{dictionaryStats.totalWords.toLocaleString()}</div>
+            <div className="text-sm text-blue-700">Total Words</div>
+          </div>
+          <div className="text-center p-4 bg-green-50 rounded-lg">
+            <div className="text-2xl font-bold text-green-900">{dictionaryStats.commonWords.toLocaleString()}</div>
+            <div className="text-sm text-green-700">Common Words</div>
+          </div>
+          <div className="text-center p-4 bg-yellow-50 rounded-lg">
+            <div className="text-2xl font-bold text-yellow-900">{dictionaryStats.uncommonWords.toLocaleString()}</div>
+            <div className="text-sm text-yellow-700">Uncommon Words</div>
+          </div>
+          <div className="text-center p-4 bg-red-50 rounded-lg">
+            <div className="text-2xl font-bold text-red-900">{dictionaryStats.rareWords.toLocaleString()}</div>
+            <div className="text-sm text-red-700">Rare Words</div>
+          </div>
+        </div>
+        
+        <div className="mt-4 text-center text-sm text-gray-600">
+          <p>Average word frequency: <strong>{dictionaryStats.avgFrequency.toLocaleString()}</strong> | 
+             Average word length: <strong>{dictionaryStats.avgLength} characters</strong></p>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
