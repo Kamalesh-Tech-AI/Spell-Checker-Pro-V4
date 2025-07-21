@@ -1,117 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import InputBox from '../components/InputBox';
 import SuggestionDropdown from '../components/SuggestionDropdown';
-import { Search, Clock, TrendingUp, User } from 'lucide-react';
+import { Search, Clock, TrendingUp, User, Activity, Timer } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { enhancedDictionary } from '../data/mockData';
+import { dictionaryTrie, getSpellingSuggestions, DictionaryWord } from '../data/dictionaryLoader';
 
 interface Suggestion {
   word: string;
   score: number;
   type: 'autocomplete' | 'spellcheck';
+  frequency?: number;
+  commonality?: string;
 }
 
+interface QueryPerformance {
+  query: string;
+  responseTime: number;
+  timestamp: string;
+  type: 'autocomplete' | 'spellcheck';
+  suggestionsCount: number;
+}
 const UserDashboard = () => {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [queryPerformance, setQueryPerformance] = useState<QueryPerformance[]>([]);
 
   const { user } = useAuth();
 
-  // Trie implementation for autocomplete
-  class TrieNode {
-    children: Map<string, TrieNode> = new Map();
-    isEndOfWord: boolean = false;
-    frequency: number = 0;
-  }
+  // Get dictionary statistics for display
+  const [dictionaryStats, setDictionaryStats] = useState(() => dictionaryTrie.getStats());
 
-  class Trie {
-    root: TrieNode = new TrieNode();
-
-    insert(word: string, frequency: number = 1) {
-      let current = this.root;
-      for (const char of word.toLowerCase()) {
-        if (!current.children.has(char)) {
-          current.children.set(char, new TrieNode());
-        }
-        current = current.children.get(char)!;
-      }
-      current.isEndOfWord = true;
-      current.frequency = frequency;
-    }
-
-    search(prefix: string): string[] {
-      let current = this.root;
-      for (const char of prefix.toLowerCase()) {
-        if (!current.children.has(char)) {
-          return [];
-        }
-        current = current.children.get(char)!;
-      }
-      
-      const results: Array<{word: string, frequency: number}> = [];
-      this.dfs(current, prefix.toLowerCase(), results);
-      
-      return results
-        .sort((a, b) => b.frequency - a.frequency)
-        .slice(0, 10)
-        .map(item => item.word);
-    }
-
-    private dfs(node: TrieNode, prefix: string, results: Array<{word: string, frequency: number}>) {
-      if (node.isEndOfWord) {
-        results.push({ word: prefix, frequency: node.frequency });
-      }
-      
-      for (const [char, childNode] of node.children) {
-        this.dfs(childNode, prefix + char, results);
-      }
-    }
-  }
-
-  // Edit distance algorithm for spell checking
-  const calculateEditDistance = (word1: string, word2: string): number => {
-    const dp = Array(word1.length + 1).fill(null).map(() => 
-      Array(word2.length + 1).fill(0)
-    );
-
-    for (let i = 0; i <= word1.length; i++) dp[i][0] = i;
-    for (let j = 0; j <= word2.length; j++) dp[0][j] = j;
-
-    for (let i = 1; i <= word1.length; i++) {
-      for (let j = 1; j <= word2.length; j++) {
-        if (word1[i - 1] === word2[j - 1]) {
-          dp[i][j] = dp[i - 1][j - 1];
-        } else {
-          dp[i][j] = 1 + Math.min(
-            dp[i - 1][j],
-            dp[i][j - 1], 
-            dp[i - 1][j - 1]
-          );
-        }
-      }
-    }
-
-    return dp[word1.length][word2.length];
-  };
-
-  // Sample dictionary - in production this would come from Supabase
-  const dictionary = [
-    'javascript', 'python', 'typescript', 'react', 'angular', 'vue', 'node', 
-    'express', 'database', 'algorithm', 'function', 'component', 'interface',
-    'programming', 'development', 'application', 'framework', 'library',
-    'autocomplete', 'spellcheck', 'suggestion', 'search', 'filter', 'sort'
-  ];
-
-  const trie = new Trie();
-
+  // Update stats when dictionary changes
   useEffect(() => {
-    // Initialize trie with dictionary
-    enhancedDictionary.forEach((word, index) => {
-      trie.insert(word, enhancedDictionary.length - index);
-    });
+    const updateStats = () => {
+      setDictionaryStats(dictionaryTrie.getStats());
+    };
+    
+    // Update stats every 5 seconds to reflect any new uploads
+    const interval = setInterval(updateStats, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchSuggestions = async (searchQuery: string) => {
@@ -121,38 +51,58 @@ const UserDashboard = () => {
     }
 
     setIsLoading(true);
+    const startTime = performance.now();
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 100));
-
     try {
       // Try autocomplete first
-      const autocompleteResults = trie.search(searchQuery);
+      const autocompleteResults = dictionaryTrie.search(searchQuery, 8);
       
       if (autocompleteResults.length > 0) {
-        const suggestions = autocompleteResults.map(word => ({
-          word,
-          score: 1.0,
-          type: 'autocomplete' as const
+        const suggestions = autocompleteResults.map(wordData => ({
+          word: wordData.word,
+          score: wordData.frequency / 100000, // Normalize score
+          type: 'autocomplete' as const,
+          frequency: wordData.frequency,
+          commonality: wordData.commonality
         }));
         setSuggestions(suggestions);
+        
+        const endTime = performance.now();
+        const responseTime = Math.max(1, endTime - startTime); // Minimum 1ms for display
+        
+        // Add performance data
+        setQueryPerformance(prev => [{
+          query: searchQuery,
+          responseTime,
+          timestamp: new Date().toISOString(),
+          type: 'autocomplete',
+          suggestionsCount: suggestions.length
+        }, ...prev.slice(0, 19)]); // Keep last 20 queries
       } else {
         // Fallback to spell checking
-        const spellCheckResults = enhancedDictionary
-          .map(word => ({
-            word,
-            distance: calculateEditDistance(searchQuery.toLowerCase(), word.toLowerCase())
-          }))
-          .filter(item => item.distance <= 2)
-          .sort((a, b) => a.distance - b.distance)
-          .slice(0, 5)
-          .map(item => ({
-            word: item.word,
-            score: 1 - (item.distance / searchQuery.length),
-            type: 'spellcheck' as const
+        const spellCheckResults = getSpellingSuggestions(searchQuery, 2, 5);
+        
+        const suggestions = spellCheckResults.map(wordData => ({
+          word: wordData.word,
+          score: wordData.frequency / 100000, // Normalize score
+          type: 'spellcheck' as const,
+          frequency: wordData.frequency,
+          commonality: wordData.commonality
           }));
           
-        setSuggestions(spellCheckResults);
+        setSuggestions(suggestions);
+        
+        const endTime = performance.now();
+        const responseTime = Math.max(1, endTime - startTime); // Minimum 1ms for display
+        
+        // Add performance data
+        setQueryPerformance(prev => [{
+          query: searchQuery,
+          responseTime,
+          timestamp: new Date().toISOString(),
+          type: 'spellcheck',
+          suggestionsCount: suggestions.length
+        }, ...prev.slice(0, 19)]); // Keep last 20 queries
       }
     } catch (error) {
       console.error('Error fetching suggestions:', error);
@@ -250,7 +200,7 @@ const UserDashboard = () => {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-2 gap-8 mb-8">
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center space-x-3 mb-4">
               <Clock className="h-5 w-5 text-teal-600" />
@@ -276,26 +226,145 @@ const UserDashboard = () => {
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center space-x-3 mb-4">
               <TrendingUp className="h-5 w-5 text-orange-600" />
-              <h3 className="text-lg font-semibold text-gray-900">How It Works</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Dictionary Stats</h3>
             </div>
-            <div className="space-y-3 text-sm text-gray-600">
+            <div className="space-y-3 text-sm">
               <div className="flex items-start space-x-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
                 <div>
-                  <strong>Trie-based Autocomplete:</strong> Ultra-fast prefix matching for instant suggestions
+                  <strong className="text-gray-900">Total Words:</strong> 
+                  <span className="text-gray-600"> {dictionaryStats.totalWords.toLocaleString()}</span>
                 </div>
               </div>
               <div className="flex items-start space-x-2">
                 <div className="w-2 h-2 bg-teal-500 rounded-full mt-2"></div>
                 <div>
-                  <strong>Edit Distance Fallback:</strong> Smart spell checking when no matches found
+                  <strong className="text-gray-900">Common Words:</strong> 
+                  <span className="text-gray-600"> {dictionaryStats.commonWords}</span>
                 </div>
               </div>
               <div className="flex items-start space-x-2">
                 <div className="w-2 h-2 bg-orange-500 rounded-full mt-2"></div>
                 <div>
-                  <strong>Keyboard Navigation:</strong> Use ↑↓ arrows and Enter to navigate suggestions
+                  <strong className="text-gray-900">Avg Frequency:</strong> 
+                  <span className="text-gray-600"> {dictionaryStats.avgFrequency.toLocaleString()}</span>
                 </div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <div className="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
+                <div>
+                  <strong className="text-gray-900">Avg Length:</strong> 
+                  <span className="text-gray-600"> {dictionaryStats.avgLength} chars</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Query Performance Table */}
+        {queryPerformance.length > 0 && (
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <Timer className="h-5 w-5 text-purple-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Query Performance</h3>
+              </div>
+              <div className="text-sm text-gray-500">
+                Avg: {(queryPerformance.reduce((sum, q) => sum + q.responseTime, 0) / queryPerformance.length).toFixed(2)}ms
+              </div>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Query
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Response Time
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Suggestions
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Timestamp
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {queryPerformance.slice(0, 10).map((performance, index) => (
+                    <tr key={index} className="hover:bg-gray-50 transition-colors duration-200">
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="font-medium text-gray-900">{performance.query}</div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center space-x-2">
+                          <Activity className="h-4 w-4 text-green-500" />
+                          <span className={`font-semibold ${
+                            performance.responseTime < 50 ? 'text-green-600' :
+                            performance.responseTime < 100 ? 'text-yellow-600' :
+                            'text-red-600'
+                          }`}>
+                            {performance.responseTime.toFixed(2)}ms
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          performance.type === 'autocomplete' 
+                            ? 'bg-blue-100 text-blue-700' 
+                            : 'bg-orange-100 text-orange-700'
+                        }`}>
+                          {performance.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {performance.suggestionsCount}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(performance.timestamp).toLocaleTimeString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+            {queryPerformance.length > 10 && (
+              <div className="mt-4 text-center">
+                <p className="text-sm text-gray-500">
+                  Showing latest 10 of {queryPerformance.length} queries
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <TrendingUp className="h-5 w-5 text-indigo-600" />
+            <h3 className="text-lg font-semibold text-gray-900">How It Works</h3>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4 text-sm text-gray-600">
+            <div className="flex items-start space-x-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+              <div>
+                <strong>Trie-based Autocomplete:</strong> Ultra-fast prefix matching using real English dictionary data
+              </div>
+            </div>
+            <div className="flex items-start space-x-2">
+              <div className="w-2 h-2 bg-teal-500 rounded-full mt-2"></div>
+              <div>
+                <strong>Edit Distance Fallback:</strong> Smart spell checking with frequency-based ranking
+              </div>
+            </div>
+            <div className="flex items-start space-x-2">
+              <div className="w-2 h-2 bg-orange-500 rounded-full mt-2"></div>
+              <div>
+                <strong>Keyboard Navigation:</strong> Use ↑↓ arrows and Enter to navigate suggestions
               </div>
             </div>
           </div>
