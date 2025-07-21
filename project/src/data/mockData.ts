@@ -200,35 +200,5 @@ export const mockAnalytics = {
   ]
 };
 
-// Enhanced dictionary with more programming and technical terms
-export const enhancedDictionary = [
-  // Programming languages
-  'javascript', 'python', 'typescript', 'java', 'csharp', 'cpp', 'rust', 'go', 'swift', 'kotlin',
-  'php', 'ruby', 'scala', 'haskell', 'clojure', 'erlang', 'elixir', 'dart', 'lua', 'perl',
-  
-  // Frameworks and libraries
-  'react', 'angular', 'vue', 'svelte', 'nextjs', 'nuxtjs', 'gatsby', 'express', 'fastapi',
-  'django', 'flask', 'rails', 'laravel', 'spring', 'dotnet', 'nodejs', 'deno', 'electron',
-  
-  // Development concepts
-  'algorithm', 'function', 'component', 'interface', 'class', 'object', 'method', 'variable',
-  'constant', 'array', 'string', 'boolean', 'integer', 'float', 'double', 'char', 'byte',
-  'pointer', 'reference', 'inheritance', 'polymorphism', 'encapsulation', 'abstraction',
-  
-  // Web development
-  'html', 'css', 'sass', 'scss', 'less', 'tailwind', 'bootstrap', 'webpack', 'vite', 'rollup',
-  'babel', 'eslint', 'prettier', 'jest', 'cypress', 'playwright', 'storybook', 'figma',
-  
-  // Database and backend
-  'database', 'sql', 'nosql', 'mongodb', 'postgresql', 'mysql', 'sqlite', 'redis', 'elasticsearch',
-  'graphql', 'rest', 'api', 'microservices', 'docker', 'kubernetes', 'aws', 'azure', 'gcp',
-  
-  // Development tools
-  'git', 'github', 'gitlab', 'bitbucket', 'vscode', 'intellij', 'sublime', 'atom', 'vim', 'emacs',
-  'terminal', 'bash', 'zsh', 'powershell', 'npm', 'yarn', 'pip', 'composer', 'maven', 'gradle',
-  
-  // General tech terms
-  'programming', 'development', 'software', 'hardware', 'network', 'security', 'encryption',
-  'authentication', 'authorization', 'deployment', 'testing', 'debugging', 'refactoring',
-  'optimization', 'performance', 'scalability', 'maintainability', 'documentation'
-];
+// Note: Enhanced dictionary moved to dictionaryLoader.ts for better organization
+// and to simulate real Kaggle dataset integration
