@@ -5,6 +5,8 @@ interface Suggestion {
   word: string;
   score: number;
   type: 'autocomplete' | 'spellcheck';
+  frequency?: number;
+  commonality?: string;
 }
 
 interface SuggestionDropdownProps {
@@ -75,9 +77,27 @@ const SuggestionDropdown: React.FC<SuggestionDropdownProps> = ({
               <span className="text-gray-900 font-medium">
                 {highlightMatch(suggestion.word, query)}
               </span>
+              
+              {suggestion.frequency && (
+                <span className="text-xs text-gray-500 ml-2">
+                  ({suggestion.frequency.toLocaleString()})
+                </span>
+              )}
             </div>
             
             <div className="flex items-center space-x-2">
+              {suggestion.commonality && (
+                <span className={`
+                  text-xs px-2 py-1 rounded-full font-medium
+                  ${suggestion.commonality === 'common' ? 'bg-green-100 text-green-700' :
+                    suggestion.commonality === 'uncommon' ? 'bg-yellow-100 text-yellow-700' :
+                    'bg-red-100 text-red-700'
+                  }
+                `}>
+                  {suggestion.commonality}
+                </span>
+              )}
+              
               <span className={`
                 text-xs px-2 py-1 rounded-full font-medium
                 ${suggestion.type === 'autocomplete' 
@@ -87,8 +107,6 @@ const SuggestionDropdown: React.FC<SuggestionDropdownProps> = ({
               `}>
                 {suggestion.type === 'autocomplete' ? 'Match' : 'Spell'}
               </span>
-              
-              <div className="flex-shrink-0 w-2 h-2 rounded-full bg-green-400"></div>
             </div>
           </button>
         ))}
